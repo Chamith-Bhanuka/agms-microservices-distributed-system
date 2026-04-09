@@ -14,35 +14,33 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Slf4j
 @RequiredArgsConstructor
 public class TelemetryFetcher {
-    @Autowired
-    private AutomationClient automationClient;
-
-    @Autowired
-    private WebClient.Builder webClientBuilder;
-
-    // Inject these from your config-repo/telemetry-service.yml
-    @Value("${iot.external.auth-token}")
-    private String authToken;
+    private final AutomationClient automationClient;
+    private final WebClient.Builder webClientBuilder;
+    private final AuthService authService; // Injected custom auth service
 
     @Value("${iot.external.url}")
     private String apiUrl;
 
+    // Scheduled task runs every 10 seconds
     @Scheduled(fixedRateString = "${telemetry.fetch-interval}")
     public void fetchAndPushData() {
-        log.info("Fetching latest telemetry...");
+        log.info("Starting telemetry cycle...");
 
-        webClientBuilder.build()
-                .get()
-                .uri(apiUrl + "/devices/telemetry/{deviceId}", "DEV_001")
-                .header("Authorization", "Bearer " + authToken) // Use the real token
+        authService.getAccessToken().subscribe(token -> {
+            webClientBuilder.build()
+                    .get()
+                    // Replace with a deviceId from your database for 100% integration
+                    .uri(apiUrl + "/devices/telemetry/{deviceId}", "b751b8c9-644a-484c-ba3f-be63f9b27ad0")
+                    .header("Authorization", "Bearer " + token)
                 .retrieve()
-                .bodyToMono(TelemetryData.class)
-                .subscribe(
-                        data -> {
-                            log.info("Data received: Temp {}°C", data.getTemperature());
-                            automationClient.pushTelemetryData(data);
-                        },
-                        error -> log.error("Failed to fetch IoT data: {}", error.getMessage()) // Handle error so it doesn't crash
-                );
+                    .bodyToMono(TelemetryData.class)
+                    .subscribe(
+                            data -> {
+                                log.info("Data fetched: Temp {}°C from {}", data.getValue().getTemperature(), data.getDeviceId());
+                                automationClient.pushTelemetryData(data); // Push to Automation
+                            },
+                            error -> log.error("Fetch Error: {}", error.getMessage())
+                    );
+        });
     }
 }

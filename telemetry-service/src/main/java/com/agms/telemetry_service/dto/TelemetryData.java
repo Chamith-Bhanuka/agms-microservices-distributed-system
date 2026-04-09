@@ -8,9 +8,16 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class TelemetryData {
-    private String deviceId;
-    private String zoneId;
-    private Double temperature;
-    private Double humidity;
-    private String capturedAt;
+        private String deviceId;
+        private String zoneId;
+        private SensorValue value;
+        private String capturedAt;
+
+        @Data
+        public static class SensorValue {
+            private Double temperature;
+            private String tempUnit;
+            private Double humidity;
+            private String humidityUnit;
+        }
 }
