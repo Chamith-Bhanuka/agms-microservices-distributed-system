@@ -10,19 +10,28 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/zones")
 public class ZoneController {
     @Autowired
-    private ZoneService service; // Injecting the service
+    private ZoneService service;
 
     @PostMapping
     public ResponseEntity<Zone> create(@RequestBody Zone zone) {
-        // Business logic and validation happen inside the service
         return ResponseEntity.ok(service.createZone(zone));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Zone> getById(@PathVariable Long id) {
-        // Use the service to find the zone instead of the repository directly
         return service.getZoneById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}") //
+    public ResponseEntity<Zone> update(@PathVariable Long id, @RequestBody Zone zone) {
+        return ResponseEntity.ok(service.updateZone(id, zone));
+    }
+
+    @DeleteMapping("/{id}") //
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        service.deleteZone(id);
+        return ResponseEntity.noContent().build();
     }
 }
