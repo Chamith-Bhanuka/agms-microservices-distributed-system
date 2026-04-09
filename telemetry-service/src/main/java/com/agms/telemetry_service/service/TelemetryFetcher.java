@@ -5,6 +5,7 @@ import com.agms.telemetry_service.dto.TelemetryData;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -13,28 +14,35 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Slf4j
 @RequiredArgsConstructor
 public class TelemetryFetcher {
+    @Autowired
     private AutomationClient automationClient;
-    private WebClient.Builder webClientBuilder; // Used for non-blocking IoT API calls
 
-    // Runs every 10,000 milliseconds (10 seconds)
-    @Scheduled(fixedRate = 10000)
+    @Autowired
+    private WebClient.Builder webClientBuilder;
+
+    // Inject these from your config-repo/telemetry-service.yml
+    @Value("${iot.external.auth-token}")
+    private String authToken;
+
+    @Value("${iot.external.url}")
+    private String apiUrl;
+
+    @Scheduled(fixedRateString = "${telemetry.fetch-interval}")
     public void fetchAndPushData() {
-        log.info("Fetching latest telemetry from External IoT API...");
+        log.info("Fetching latest telemetry...");
 
-        // 1. The Fetcher: Call External API (Requires Bearer Token)
-        // Note: For now, we use a placeholder call to the External IoT API
         webClientBuilder.build()
                 .get()
-                .uri("http://104.211.95.241:8080/api/devices/telemetry/{deviceId}", "your-device-id")
-                .header("Authorization", "Bearer your-token-here")
+                .uri(apiUrl + "/devices/telemetry/{deviceId}", "DEV_001")
+                .header("Authorization", "Bearer " + authToken) // Use the real token
                 .retrieve()
                 .bodyToMono(TelemetryData.class)
-                .subscribe(data -> {
-                    log.info("Data received: Temp {}°C", data.getTemperature());
-
-                    // 2. The Pusher: Immediately send to Automation Service
-                    automationClient.pushTelemetryData(data);
-                    log.info("Data pushed to Automation Service successfully.");
-                });
+                .subscribe(
+                        data -> {
+                            log.info("Data received: Temp {}°C", data.getTemperature());
+                            automationClient.pushTelemetryData(data);
+                        },
+                        error -> log.error("Failed to fetch IoT data: {}", error.getMessage()) // Handle error so it doesn't crash
+                );
     }
 }
