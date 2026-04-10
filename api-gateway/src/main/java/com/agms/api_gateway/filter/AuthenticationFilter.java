@@ -5,10 +5,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
 @Component
 public class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFilter.Config> {
+
     @Autowired
     private RouteValidator validator;
 
@@ -16,18 +21,15 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     private JwtUtil jwtUtil;
 
     public AuthenticationFilter() {
-        super(Config.class); // Fixes: "Cannot resolve method 'super'"
+        super(Config.class);
     }
 
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
-            // Fixes: "Cannot resolve method getRequest()"
             if (validator.isSecured.test(exchange.getRequest())) {
-
-                // Check if header contains token
                 if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-                    throw new RuntimeException("Missing authorization header");
+                    return onError(exchange, "Missing Authorization Header", HttpStatus.UNAUTHORIZED);
                 }
 
                 String authHeader = exchange.getRequest().getHeaders().get(HttpHeaders.AUTHORIZATION).get(0);
@@ -38,11 +40,18 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                 try {
                     jwtUtil.validateToken(authHeader);
                 } catch (Exception e) {
-                    throw new RuntimeException("Unauthorized access to AGMS");
+                    return onError(exchange, "Invalid Token: Unauthorized access", HttpStatus.UNAUTHORIZED);
                 }
             }
             return chain.filter(exchange);
         };
+    }
+
+    // Helper method to return clean 401 response
+    private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(httpStatus);
+        return response.setComplete();
     }
 
     public static class Config {}
